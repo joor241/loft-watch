@@ -1,0 +1,31 @@
+name: check-sources
+
+# Handmatige sanity-check: haalt beide bronnen één keer op vanaf een
+# GitHub-runner en print wat er gevonden wordt. Verstuurt geen pushmelding.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - env:
+          TZ: Europe/Amsterdam
+        run: |
+          python - <<'EOF'
+          import loft_watch as w
+          for name, fetch in (("fourvenues", w.Fourvenues("the-loft").events),
+                              ("wordpress", lambda: w.wp_events("https://theloftamsterdam.com"))):
+              try:
+                  evs = fetch()
+                  print(f"CHECK {name}: OK, {len(evs)} events")
+                  for e in evs[:3]:
+                      print(f"CHECK   {e['start']:%d-%m %H:%M}  {e['name']}")
+              except Exception as e:
+                  print(f"CHECK {name}: FAIL {e!r}")
+          EOF
