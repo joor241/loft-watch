@@ -1,39 +1,38 @@
-name: loft-watch
+name: loft-guard
 
-# Scanner: één job pollt ~5u40m lang elke 20s en zet 10 min voor het einde zelf
-# zijn opvolger in de wachtrij. De concurrency-groep zorgt dat er nooit twee
-# tegelijk draaien; de opvolger start zodra deze stopt. De uurlijkse cron en de
-# bewaker (guard.yml) zijn reserve voor als die keten ooit breekt.
+# Bewaker: controleert elke 30s de hartslag van de scanner (watch.yml). Blijft
+# die >4 min weg: push, scanner herstarten en zelf doorscannen tot hij terug is.
+# Kortere looptijd dan de scanner, zodat hun overdrachten nooit samenvallen.
 on:
   schedule:
-    - cron: "7 * * * *"
+    - cron: "37 * * * *"
   workflow_dispatch:
 
 concurrency:
-  group: loft-watch
+  group: loft-guard
   cancel-in-progress: false
 
 permissions:
-  contents: write   # seen.json terugschrijven
-  actions: write    # opvolger / bewaker starten
-  statuses: write   # hartslag
-  issues: write     # noodmelding als ntfy onbereikbaar is
+  contents: write
+  actions: write
+  statuses: write
+  issues: write
 
 jobs:
-  watch:
+  guard:
     runs-on: ubuntu-latest
-    timeout-minutes: 355
+    timeout-minutes: 325
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run watcher
+      - name: Run guard
         env:
           TZ: Europe/Amsterdam
           GITHUB_TOKEN: ${{ github.token }}
           LOFT_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-          LOFT_MAX_RUNTIME_MIN: "340"
+          LOFT_MAX_RUNTIME_MIN: "310"
           LOFT_COMMIT_STATE: "1"
           LOFT_POLL_SECONDS: ${{ vars.LOFT_POLL_SECONDS || '20' }}
           LOFT_TARGET_NAMES: ${{ vars.LOFT_TARGET_NAMES || 'mau p,dennis cruz' }}
@@ -42,10 +41,9 @@ jobs:
         run: |
           git config user.name "loft-watch bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          python loft_watch.py
-      # Ook na een crash/hang: zorg dat er een volgende run in de wachtrij staat.
+          python loft_watch.py --guard
       - name: Ensure next run
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python loft_watch.py --ensure-successor watch.yml
+        run: python loft_watch.py --ensure-successor guard.yml
