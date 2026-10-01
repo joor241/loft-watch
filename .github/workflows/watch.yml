@@ -1,8 +1,8 @@
 name: loft-watch
 
-# Eén job pollt ~5u40m lang elke 20s. Elk uur zet cron een nieuwe run klaar;
-# door de concurrency-groep wacht die tot de huidige klaar is en neemt dan
-# direct over. Zo is er altijd precies één watcher actief, zonder gaten.
+# Eén job pollt ~5u40m lang elke 20s en start bij het stoppen zelf de volgende.
+# De uurlijkse cron is reserve voor als die keten ooit breekt; door de
+# concurrency-groep wacht een extra run tot de huidige klaar is.
 on:
   schedule:
     - cron: "7 * * * *"
@@ -14,6 +14,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write  # om zelf de volgende run te starten
 
 jobs:
   watch:
@@ -38,3 +39,11 @@ jobs:
           git config user.name "loft-watch bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           python loft_watch.py
+      # Cron van GitHub kan uren achterlopen of overslaan; daarom start elke run
+      # bij het stoppen zelf de volgende. (Staat er al één in de wachtrij, dan
+      # vervangt deze hem — er draait er nooit meer dan één.)
+      - name: Start next run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run watch.yml --ref main --repo "$GITHUB_REPOSITORY"
