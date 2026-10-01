@@ -1,0 +1,40 @@
+name: loft-watch
+
+# Eén job pollt ~5u40m lang elke 20s. Elk uur zet cron een nieuwe run klaar;
+# door de concurrency-groep wacht die tot de huidige klaar is en neemt dan
+# direct over. Zo is er altijd precies één watcher actief, zonder gaten.
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: loft-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run watcher
+        env:
+          TZ: Europe/Amsterdam
+          LOFT_NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          LOFT_MAX_RUNTIME_MIN: "340"
+          LOFT_COMMIT_STATE: "1"
+          LOFT_POLL_SECONDS: ${{ vars.LOFT_POLL_SECONDS || '20' }}
+          LOFT_TARGET_NAMES: ${{ vars.LOFT_TARGET_NAMES || 'mau p,dennis cruz' }}
+          LOFT_TARGET_DATE: ${{ vars.LOFT_TARGET_DATE || '2026-10-24' }}
+          LOFT_TARGET_TIME: ${{ vars.LOFT_TARGET_TIME || '14:30' }}
+        run: |
+          git config user.name "loft-watch bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python loft_watch.py

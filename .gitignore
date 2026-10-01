@@ -1,0 +1,6 @@
+config.json
+loft_watch.log
+*.tmp
+__pycache__/
+out.txt
+err.txt
